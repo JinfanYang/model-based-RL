@@ -1,58 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Reinforcement Learning (DQN) tutorial
-=====================================
-**Author**: `Adam Paszke <https://github.com/apaszke>`_
-
-
-This tutorial shows how to use PyTorch to train a Deep Q Learning (DQN) agent
-on the CartPole-v0 task from the `OpenAI Gym <https://gym.openai.com/>`__.
-
-**Task**
-
-The agent has to decide between two actions - moving the cart left or
-right - so that the pole attached to it stays upright. You can find an
-official leaderboard with various algorithms and visualizations at the
-`Gym website <https://gym.openai.com/envs/CartPole-v0>`__.
-
-.. figure:: /_static/img/cartpole.gif
-   :alt: cartpole
-
-   cartpole
-
-As the agent observes the current state of the environment and chooses
-an action, the environment *transitions* to a new state, and also
-returns a reward that indicates the consequences of the action. In this
-task, the environment terminates if the pole falls over too far.
-
-The CartPole task is designed so that the inputs to the agent are 4 real
-values representing the environment state (position, velocity, etc.).
-However, neural networks can solve the task purely by looking at the
-scene, so we'll use a patch of the screen centered on the cart as an
-input. Because of this, our results aren't directly comparable to the
-ones from the official leaderboard - our task is much harder.
-Unfortunately this does slow down the training, because we have to
-render all the frames.
-
-Strictly speaking, we will present the state as the difference between
-the current screen patch and the previous one. This will allow the agent
-to take the velocity of the pole into account from one image.
-
-**Packages**
-
-
-First, let's import needed packages. Firstly, we need
-`gym <https://gym.openai.com/docs>`__ for the environment
-(Install using `pip install gym`).
-We'll also use the following from PyTorch:
-
--  neural networks (``torch.nn``)
--  optimization (``torch.optim``)
--  automatic differentiation (``torch.autograd``)
--  utilities for vision tasks (``torchvision`` - `a separate
-   package <https://github.com/pytorch/vision>`__).
-
-"""
 
 import gym
 import math
@@ -106,7 +52,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #
 
 Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
+                        ('state', 'action', 'next_frame', 'reward'))
 
 
 class ReplayMemory(object):
@@ -288,7 +234,7 @@ def optimize_model():
     state_batch = torch.cat(batch.state)
     action_batch = torch.cat(batch.action)
     reward_batch = torch.cat(batch.reward)
-    next_s_batch = torch.cat(batch.next_state)
+    next_batch = torch.cat(batch.next_frame)
 
 
     x,r = pred_net(state_batch,action_batch)
@@ -296,7 +242,7 @@ def optimize_model():
     # Compute Huber loss
     loss_r = F.smooth_l1_loss(r, reward_batch)
     # Compute the loss of the predicted state and the actual next state ................... TODO:define imageloss
-    loss_x = imageloss(x, next_s_batch)
+    loss_x = imageloss(x, next_batch)
 
     # Optimize the model
     optimizer.zero_grad()
@@ -340,15 +286,15 @@ for i_episode in range(num_episodes):
         last_screen = current_screen
         current_screen = get_screen()
         if not done:
-            next_state = torch.cat((last_3_screen, last_2_screen, last_screen, current_screen),1)
+            next_frame = current_screen
         else:
-            next_state = None
+            next_frame = None
 
         # Store the transition in memory
-        memory.push(state, action, next_state, reward)
+        memory.push(state, action, next_frame, reward)
 
         # Move to the next state
-        state = next_state
+        state = torch.cat((last_3_screen, last_2_screen, last_screen, current_screen),1)
 
         # Perform one step of the optimization (on the target network)
         optimize_model()
